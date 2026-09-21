@@ -1,0 +1,11 @@
+{
+  "author": "",
+  "articles": [
+    {
+      "title": "示例文章标题",
+      "digest": "这是摘要，建议不超过 50 个中文字。",
+      "html": "article.example.html",
+      "cover": "cover.example.jpg"
+    }
+  ]
+}

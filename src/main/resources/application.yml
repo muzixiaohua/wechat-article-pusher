@@ -1,0 +1,18 @@
+server:
+  # 对外可改为反代后端口；服务自身监听 127.0.0.1，由 Nginx 反代到 443
+  port: 8080
+  address: 127.0.0.1
+
+wechat:
+  # 公众号 AppId / AppSecret，二选一：改这里，或用环境变量 WECHAT_APPID / WECHAT_APPSECRET 注入
+  app-id: ${WECHAT_APPID:YOUR_WECHAT_APPID}
+  app-secret: ${WECHAT_APPSECRET:YOUR_WECHAT_APPSECRET}
+
+pusher:
+  # 接口鉴权 token：务必改成随机强字符串！也可用环境变量 PUSHER_API_TOKEN 注入。
+  # 默认值仅用于本地冒烟，生产环境必须改，否则任何人都能调用你的服务。
+  api-token: ${PUSHER_API_TOKEN:change-me}
+  # 批次落盘目录（按秒级时间戳建子目录）；确保运行用户有写权限，可改 PUSHER_STORAGE_DIR
+  storage-dir: ${PUSHER_STORAGE_DIR:/www/wechat-pusher/drafts}
+  # 定时清理：保留最近 N 天的本地副本（仅清服务器本地，不动微信草稿箱）
+  clean-keep-days: 3
