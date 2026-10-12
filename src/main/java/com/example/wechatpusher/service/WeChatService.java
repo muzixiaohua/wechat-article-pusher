@@ -12,6 +12,8 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -69,6 +71,77 @@ public class WeChatService {
             }
             return r;
         }
+    }
+
+    private String httpPostJson(String url, byte[] body) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setRequestMethod("POST");
+        c.setDoOutput(true);
+        c.setConnectTimeout(30000);
+        c.setReadTimeout(30000);
+        c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+        c.setRequestProperty("User-Agent", "Mozilla/5.0");
+        c.setFixedLengthStreamingMode(body.length);
+        try (OutputStream os = c.getOutputStream()) {
+            os.write(body);
+        }
+        int code = c.getResponseCode();
+        try (InputStream in = code == 200 ? c.getInputStream() : c.getErrorStream()) {
+            String r = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            if (code != 200) {
+                throw new IOException("POST " + code + " " + r);
+            }
+            return r;
+        }
+    }
+
+    /**
+     * 获取全部已发布文章（freepublish/batchget 翻页），返回每篇文章的标题/摘要/文章ID/更新时间。
+     * 该接口由中继服务器（已加入公众号 IP 白名单的固定 IP）调用，客户端无需再配置白名单。
+     */
+    public List<Map<String, Object>> listPublished() throws IOException {
+        String token = getAccessToken();
+        List<Map<String, Object>> result = new ArrayList<>();
+        int begin = 0;
+        while (true) {
+            String url = "https://api.weixin.qq.com/cgi-bin/freepublish/batchget?access_token=" + token;
+            byte[] body = om.writeValueAsBytes(Map.of("begin", begin, "count", 20));
+            String resp = httpPostJson(url, body);
+            Map<?, ?> d = om.readValue(resp, Map.class);
+            Object err = d.get("errcode");
+            if (err != null && !"0".equals(String.valueOf(err))) {
+                throw new IOException("freepublish/batchget failed: " + resp);
+            }
+            Object itemsObj = d.get("item");
+            if (!(itemsObj instanceof List)) {
+                break;
+            }
+            for (Object it : (List<?>) itemsObj) {
+                Map<?, ?> item = (Map<?, ?>) it;
+                Object contentObj = item.get("content");
+                if (contentObj instanceof Map) {
+                    Object newsObj = ((Map<?, ?>) contentObj).get("news_item");
+                    if (newsObj instanceof List) {
+                        for (Object n : (List<?>) newsObj) {
+                            Map<?, ?> art = (Map<?, ?>) n;
+                            Map<String, Object> m = new LinkedHashMap<>();
+                            m.put("title", art.get("title"));
+                            m.put("digest", art.get("digest"));
+                            m.put("article_id", item.get("article_id"));
+                            m.put("update_time", item.get("update_time"));
+                            result.add(m);
+                        }
+                    }
+                }
+            }
+            int total = d.get("total_count") instanceof Number ? ((Number) d.get("total_count")).intValue() : 0;
+            int itemCount = d.get("item_count") instanceof Number ? ((Number) d.get("item_count")).intValue() : 0;
+            begin += itemCount;
+            if (begin >= total || itemCount == 0) {
+                break;
+            }
+        }
+        return result;
     }
 
     /**
